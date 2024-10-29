@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 
-app = FastAPI()
+from db_connections import lifespan
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/")

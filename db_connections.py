@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+mongodb_url = os.getenv("MONGO_URL")
+client = AsyncIOMotorClient(mongodb_url)
+db = client["SparixHub"]
 
 @asynccontextmanager
 async def lifespan(app):
