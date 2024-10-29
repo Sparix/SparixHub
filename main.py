@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 
 from db_connections import lifespan
+from authentication.authentication import auth_router
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 
 @app.get("/")
