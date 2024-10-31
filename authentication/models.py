@@ -1,22 +1,15 @@
-from pydantic import BaseModel
+from bson import ObjectId
+from pydantic import BaseModel, Field
+from typing import Optional
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-class TokenData(BaseModel):
-    username: str | None = None
-
-
-class User(BaseModel):
+class UserInDB(BaseModel):
+    id: ObjectId = Field(default_factory=ObjectId)  # Генеруємо ObjectId автоматично
     username: str
-    email: str | None = None
-    firs_name: str | None = None
-    last_name: str | None = None
-    disabled: bool | None = None
-
-
-class UserInDB(User):
+    email: str
+    first_name: Optional[str] = None  # Поле може бути відсутнім
+    last_name: Optional[str] = None   # Поле може бути відсутнім
     hashed_password: str
+
+    class Config:
+        arbitrary_types_allowed = True
