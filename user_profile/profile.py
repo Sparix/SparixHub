@@ -2,6 +2,7 @@ from typing import Annotated, Optional
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse
 from jwt import InvalidTokenError
 
@@ -55,3 +56,27 @@ async def get_user_by_username(
         first_name=obj_user["first_name"],
         last_name=obj_user["last_name"],
     )
+
+@user_router.patch("/me/update")
+async def update_user_profile(
+        profile_data: UserResponse,
+        current_user: Annotated[UserInDB, Depends(get_current_active_user)]
+):
+    print("user: ", profile_data)
+    update_data = profile_data.dict(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No data provided to update"
+        )
+
+    if "username" in update_data:
+        update_data.pop("username")
+
+    update_data_encoded = jsonable_encoder(update_data)
+    await db["users"].update_one(
+        {"username": current_user.username},
+        {"$set": update_data_encoded}
+    )
+
+    return RedirectResponse(url="/user/me")
