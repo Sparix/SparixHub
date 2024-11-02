@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 
 from authentication.models import UserInDB
-from authentication.serializers import User, Token, TokenData, UserResponse
+from authentication.serializers import User, Token, TokenData
 from db_connections import db
 
 load_dotenv()
@@ -86,31 +86,36 @@ async def get_current_active_user(
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
+        )
 
     access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAY)
     access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@auth_router.get("/users/me/", response_model=UserResponse)
-async def read_users_me(
-        current_user: Annotated[UserInDB, Depends(get_current_active_user)],
-):
-    return UserResponse(
-        username=current_user.username,
-        email=current_user.email,
-        first_name=current_user.first_name,
-        last_name=current_user.last_name,
-    )
-
-
 async def check_existing_user(email: str, username: str):
     users = db["users"]
-    if await users.find_one({"email": email}):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-    if await users.find_one({"username": username}):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+    existing_user = await users.find_one(
+        {"username": {"$regex": f"^{username}$", "$options": "i"}}
+    )
+    existing_email = await users.find_one(
+        {"email": {"$regex": f"^{email}$", "$options": "i"}}
+    )
+
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken"
+        )
 
 
 @auth_router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -124,9 +129,13 @@ async def register_user(user: User):
     del user_data["password"]
 
     try:
-        result = await users.insert_one(user_data)
-        return {"id": str(result.inserted_id), "message": "User registered successfully"}
-    except Exception as e:
+        await users.insert_one(user_data)
+        return {
+            "username": user.username,
+            "message": "User registered successfully"
+        }
+    except Exception as exc:
+        print("Exception", exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An error occurred during registration."

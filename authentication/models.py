@@ -4,11 +4,11 @@ from typing import Optional
 
 
 class UserInDB(BaseModel):
-    id: ObjectId = Field(default_factory=ObjectId)  # Генеруємо ObjectId автоматично
+    id: ObjectId = Field(default_factory=ObjectId)
     username: str
     email: str
-    first_name: Optional[str] = None  # Поле може бути відсутнім
-    last_name: Optional[str] = None   # Поле може бути відсутнім
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     hashed_password: str
 
     class Config:

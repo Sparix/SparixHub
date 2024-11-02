@@ -17,9 +17,3 @@ class User(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     password: str
-
-class UserResponse(BaseModel):
-    username: str
-    email: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
