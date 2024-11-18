@@ -1,7 +1,7 @@
 from typing import Annotated, Optional
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse
 from jwt import InvalidTokenError
@@ -28,11 +28,11 @@ async def read_users_me(
         last_name=current_user.last_name,
     )
 
-async def get_current_user_if_exists(token: Optional[str] = None):
+async def get_current_user_if_exists(token: Optional[str] = Header(None, alias="Authorization")):
     if not token:
         return None
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token.split()[1], SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
             return None
