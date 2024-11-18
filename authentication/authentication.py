@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 
 from authentication.models import UserInDB
-from authentication.serializers import User, Token, TokenData
+from authentication.schemas import User, Token, TokenData
 from db_connections import db
 
 load_dotenv()

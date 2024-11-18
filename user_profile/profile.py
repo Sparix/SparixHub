@@ -6,11 +6,15 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse
 from jwt import InvalidTokenError
 
-from authentication.authentication import get_current_active_user, get_current_user, oauth2_scheme, SECRET_KEY, \
-    ALGORITHM, get_user
+from authentication.authentication import (
+    get_current_active_user,
+    SECRET_KEY,
+    ALGORITHM,
+    get_user
+)
 from authentication.models import UserInDB
 from db_connections import db
-from user_profile.serializers import UserResponse
+from user_profile.schemas import UserResponse
 
 user_router = APIRouter()
 @user_router.get("/me", response_model=UserResponse)
