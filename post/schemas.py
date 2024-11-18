@@ -12,6 +12,7 @@ class PostForm(BaseModel):
     image: Optional[str] = None
     tags: Optional[List[str]] = Field(default_factory=list)
 
+
 class PostModelResponse(PostForm):
     id: str
     author: UserResponse

@@ -1,6 +1,10 @@
+from datetime import datetime
 from typing import Annotated, List
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from starlette.responses import RedirectResponse
 
 from authentication.authentication import (
     get_current_active_user,
@@ -12,6 +16,7 @@ from post.schemas import PostForm, PostModelResponse
 from user_profile.schemas import UserResponse
 
 post_router = APIRouter()
+
 
 @post_router.post("/create")
 async def create_post(
@@ -69,3 +74,56 @@ async def view_post():
 
     return enriched_posts
 
+
+@post_router.patch("/edit/{id_post}")
+async def edit_post(
+        id_post: str,
+        post_data: PostForm,
+        current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+):
+    edit_post_data = post_data.dict(exclude_unset=True)
+    if not edit_post_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No data provided to update"
+        )
+
+    updated_post = await db["posts"].find_one_and_update(
+        {
+            "_id": ObjectId(id_post),
+            "author": current_user.username
+        },
+        {
+            "$set": {
+                **jsonable_encoder(edit_post_data),
+                "updated_at": datetime.utcnow()
+            }
+        },
+        return_document=True
+    )
+
+    if not updated_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found or you are not the author."
+        )
+
+    return RedirectResponse(url="/view", status_code=status.HTTP_303_SEE_OTHER)
+
+@post_router.get("/detail/{id_post}")
+async def detail_post(
+        id_post: str,
+):
+      post = await db["posts"].find_one({"_id": ObjectId(id_post)})
+      if not post:
+          raise HTTPException(
+              status_code=status.HTTP_404_NOT_FOUND,
+              detail="Post not found."
+          )
+      author_data = await db["users"].find_one({"username": post["author"]})
+      post_data = {
+          **post,
+          "id": str(post["_id"]),
+          "author": author_data
+      }
+      return PostModelResponse(**post_data)

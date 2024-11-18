@@ -17,6 +17,8 @@ from db_connections import db
 from user_profile.schemas import UserResponse
 
 user_router = APIRouter()
+
+
 @user_router.get("/me", response_model=UserResponse)
 async def read_users_me(
         current_user: Annotated[UserInDB, Depends(get_current_active_user)],
@@ -27,6 +29,7 @@ async def read_users_me(
         first_name=current_user.first_name,
         last_name=current_user.last_name,
     )
+
 
 async def get_current_user_if_exists(token: Optional[str] = Header(None, alias="Authorization")):
     if not token:
@@ -39,6 +42,7 @@ async def get_current_user_if_exists(token: Optional[str] = Header(None, alias="
         return await get_user(username)
     except InvalidTokenError:
         return None
+
 
 @user_router.get("/{username}")
 async def get_user_by_username(
@@ -60,6 +64,7 @@ async def get_user_by_username(
         first_name=obj_user["first_name"],
         last_name=obj_user["last_name"],
     )
+
 
 @user_router.patch("/me/update")
 async def update_user_profile(
