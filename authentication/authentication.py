@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
 import jwt
 from fastapi import Depends, HTTPException, status, APIRouter
@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 
 from authentication.models import UserInDB
-from authentication.schemas import User, Token, TokenData
+from authentication.schemas import User, Token, TokenData, RefreshToken
 from db_connections import db
 
 load_dotenv()
@@ -22,6 +22,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAY = 1
+REFRESH_TOKEN_EXPIRE_DAY = 30
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -49,30 +50,39 @@ async def authenticate_user(username: str, password: str):
     return None
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def create_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(days=1))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+def decode_and_validate_token(token: str, secret_key: str, algorithm: str) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        username: Optional[str] = payload.get("sub")
         if username is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
+        return TokenData(username=username)
     except InvalidTokenError:
         raise credentials_exception
+
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    token_data = decode_and_validate_token(token, SECRET_KEY, ALGORITHM)
+
     user = await get_user(token_data.username)
     if user is None:
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 
@@ -82,7 +92,7 @@ async def get_current_active_user(
     return current_user
 
 
-@auth_router.post("/token", response_model=Token)
+@auth_router.post("/token", response_model=RefreshToken)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:
@@ -92,9 +102,22 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         )
 
     access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAY)
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_token(data={"sub": user.username}, expires_delta=access_token_expires)
 
+    refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAY)
+    refresh_token = create_token(data={"sub": user.username}, expires_delta=refresh_token_expires)
+
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
+
+
+@auth_router.post("/refresh_token", response_model=Token)
+async def refresh_access_token(refresh_token: str):
+    token_data = decode_and_validate_token(refresh_token, SECRET_KEY, ALGORITHM)
+
+    access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAY)
+    new_access_token = create_token(data={"sub": token_data.username}, expires_delta=access_token_expires)
+
+    return {"access_token": new_access_token, "token_type": "bearer"}
 
 async def check_existing_user(email: str, username: str):
     users = db["users"]
