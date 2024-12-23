@@ -2,7 +2,7 @@ from datetime import datetime
 
 from bson import ObjectId
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from user_profile.schemas import UserResponse
 
@@ -22,3 +22,6 @@ class PostModelResponse(PostForm):
     count_dislike: int = Field(default=0)
     comments_count: int = Field(default=0)
     is_published: bool = Field(default=True)
+
+class TypeLike(BaseModel):
+    type: Literal["like", "dislike"]

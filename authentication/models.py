@@ -4,7 +4,7 @@ from typing import Optional
 
 
 class UserInDB(BaseModel):
-    id: ObjectId = Field(default_factory=ObjectId)
+    id: str = Field(default_factory=lambda: str(ObjectId()))
     username: str
     email: str
     first_name: Optional[str] = None

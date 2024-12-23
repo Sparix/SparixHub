@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, List
+from typing import Annotated, List, Dict
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -11,8 +11,8 @@ from authentication.authentication import (
 )
 from authentication.models import UserInDB
 from db_connections import db
-from post.models import PostInDB
-from post.schemas import PostForm, PostModelResponse
+from post.models import PostInDB, LikeDislikeInDB
+from post.schemas import PostForm, PostModelResponse, TypeLike
 from user_profile.schemas import UserResponse
 
 post_router = APIRouter()
@@ -127,3 +127,53 @@ async def detail_post(
           "author": author_data
       }
       return PostModelResponse(**post_data)
+
+@post_router.post("/like-dislike/create/{id_post}")
+async def like_dislike_post(
+    id_post: str,
+    type_like: TypeLike,
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+):
+    post = await db["posts"].find_one({"_id": ObjectId(id_post)})
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found."
+        )
+
+    existing_reaction = await db["post_reactions"].find_one({
+        "post_id": id_post,
+        "user_username": current_user.username
+    })
+
+    if existing_reaction:
+        await db["post_reactions"].update_one(
+            {"_id": existing_reaction["_id"]},
+            {
+                "$set": {
+                    "type": type_like.type,
+                    "updated_at": datetime.utcnow(),
+                }
+            }
+        )
+        message = "Reaction updated."
+    else:
+        new_reaction = LikeDislikeInDB(**{
+            "post_id": id_post,
+            "user_username": current_user.username,
+            "type": type_like.type,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        })
+
+        await db["post_reactions"].insert_one(new_reaction.dict())
+        message = "Reaction created."
+
+    return {"message": message}
+
+
+@post_router.get("/{post_id}/likes-dislikes")
+async def get_likes_dislikes_count(post_id: str) -> Dict[str, int]:
+    like = await db["post_reactions"].count_documents({"post_id": post_id, "type": "like"})
+    dislike = await db["post_reactions"].count_documents({"post_id": post_id, "type": "dislike"})
+    return {"likes": like, "dislikes": dislike}
